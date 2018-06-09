@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<!--
+
+  0.准备删除的接口
+      这个接口接收一个参数:ids
+        sql语句:delete from comments where id in($ids);
+
+  1.单个删除
+      1.1 要在模板给每一行的删除加事件 javascript:deleteTr();
+      1.2 发现要传入id才能删,但是没有id,所以先去getComments接口,查询出来的数据要多加一条id(c.id)
+      1.3 修改模板,在点击事件那传入参数id  javascript:deleteTr(<%= list[i].id %>);
+      1.4 去JS里准备deleteTr这个函数,它接收一个参数  function deleteTr(id)
+           1.4.1 在这个函数里发post请求,参数为 ids: 传过来的函数的参数(也就是id)
+           1.4.2 请求完成要刷新当前页
+                1.4.2.1 先准备一个全局变量,保存当前页码(在loadData里,把全局变量赋值为当前页的页码)
+                1.4.2.2 loadData(全局变量);
+
+  
+   2.批量删除
+      2.1 先给批量删除按钮加点击事件
+      2.2 改模板,把每个模板中的checkbox加一个value属性,属性值为 <%= list[i].id %>
+      2.3 点击事件里,先遍历到所有被选中的checkbox,拿到它们的value,把value拼接成字符串
+      2.4 截取字符串,比原长度少1(就把最后一个逗号去掉了)
+      2.5 发请求
+            请求里刷新当前页
+
+
+ -->
+
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<title>Comments &laquo; Admin</title>
+	<link rel="stylesheet" href="../assets/vendors/bootstrap/css/bootstrap.css">
+	<link rel="stylesheet" href="../assets/vendors/font-awesome/css/font-awesome.css">
+	<link rel="stylesheet" href="../assets/vendors/nprogress/nprogress.css">
+	<link rel="stylesheet" href="../assets/css/admin.css">
+	<script src="../assets/vendors/nprogress/nprogress.js"></script>
+</head>
+<style>
+	td {
+		/*设置最大的宽*/
+		max-width: 500px;
+	}
+</style>
+<body>
+<script>NProgress.start()</script>
+
+<div class="main">
+	<nav class="navbar">
+		<button class="btn btn-default navbar-btn fa fa-bars"></button>
+		<ul class="nav navbar-nav navbar-right">
+			<li><a href="profile.html"><i class="fa fa-user"></i>个人中心</a></li>
+			<li><a href="login.html"><i class="fa fa-sign-out"></i>退出</a></li>
+		</ul>
+	</nav>
+	<div class="container-fluid">
+		<div class="page-title">
+			<h1>所有评论</h1>
+		</div>
+		<!-- 有错误信息时展示 -->
+		<!-- <div class="alert alert-danger">
+		  <strong>错误！</strong>发生XXX错误
+		</div> -->
+		<div class="page-action">
+			<!-- show when multiple checked -->
+			<div class="btn-batch" style="display: none">
+				<button class="btn btn-info btn-sm">批量批准</button>
+				<button class="btn btn-warning btn-sm">批量拒绝</button>
+				<button class="btn btn-danger btn-sm">批量删除</button>
+			</div>
+			<ul class="pagination pagination-sm pull-right">
+				<li><a href="#">上一页</a></li>
+				<li><a href="#">1</a></li>
+				<li><a href="#">2</a></li>
+				<li><a href="#">3</a></li>
+				<li><a href="#">下一页</a></li>
+			</ul>
+		</div>
+		<table class="table table-striped table-bordered table-hover">
+			<thead>
+			<tr>
+				<th class="text-center" width="40"><input type="checkbox"></th>
+				<th>作者</th>
+				<th>评论</th>
+				<th>评论在</th>
+				<th>提交于</th>
+				<th>状态</th>
+				<th class="text-center" width="100">操作</th>
+			</tr>
+			</thead>
+			<tbody>
+			<tr class="danger">
+				<td class="text-center"><input type="checkbox"></td>
+				<td>大大</td>
+				<td>楼主好人，顶一个</td>
+				<td>《Hello world》</td>
+				<td>2016/10/07</td>
+				<td>未批准</td>
+				<td class="text-center">
+					<a href="post-add.html" class="btn btn-info btn-xs">批准</a>
+					<a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+				</td>
+			</tr>
+			<tr>
+				<td class="text-center"><input type="checkbox"></td>
+				<td>大大</td>
+				<td>楼主好人，顶一个</td>
+				<td>《Hello world》</td>
+				<td>2016/10/07</td>
+				<td>已批准</td>
+				<td class="text-center">
+					<a href="post-add.html" class="btn btn-warning btn-xs">驳回</a>
+					<a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+				</td>
+			</tr>
+			<tr>
+				<td class="text-center"><input type="checkbox"></td>
+				<td>大大</td>
+				<td>楼主好人，顶一个</td>
+				<td>《Hello world》</td>
+				<td>2016/10/07</td>
+				<td>已批准</td>
+				<td class="text-center">
+					<a href="post-add.html" class="btn btn-warning btn-xs">驳回</a>
+					<a href="javascript:;" class="btn btn-danger btn-xs">删除</a>
+				</td>
+			</tr>
+			</tbody>
+		</table>
+	</div>
+</div>
+
+<div class="aside">
+	<div class="profile">
+		<img class="avatar" src="../assets/img/default.png">
+		<h3 class="name">未命名</h3>
+	</div>
+	<ul class="nav">
+		<li>
+			<a href="index.html"><i class="fa fa-dashboard"></i>仪表盘</a>
+		</li>
+		<li>
+			<a href="#menu-posts" class="collapsed" data-toggle="collapse">
+				<i class="fa fa-thumb-tack"></i>文章<i class="fa fa-angle-right"></i>
+			</a>
+			<ul id="menu-posts" class="collapse">
+				<li><a href="posts.html">所有文章</a></li>
+				<li><a href="post-add.html">写文章</a></li>
+				<li><a href="categories.html">分类目录</a></li>
+			</ul>
+		</li>
+		<li class="active">
+			<a href="comments.html"><i class="fa fa-comments"></i>评论</a>
+		</li>
+		<li>
+			<a href="users.html"><i class="fa fa-users"></i>用户</a>
+		</li>
+		<li>
+			<a href="#menu-settings" class="collapsed" data-toggle="collapse">
+				<i class="fa fa-cogs"></i>设置<i class="fa fa-angle-right"></i>
+			</a>
+			<ul id="menu-settings" class="collapse">
+				<li><a href="nav-menus.html">导航菜单</a></li>
+				<li><a href="slides.html">图片轮播</a></li>
+				<li><a href="settings.html">网站设置</a></li>
+			</ul>
+		</li>
+	</ul>
+</div>
+
+<script src="../assets/vendors/jquery/jquery.js"></script>
+<script src="../assets/vendors/bootstrap/js/bootstrap.js"></script>
+<script>NProgress.done()</script>
+</body>
+</html>
+<!--引入模板文件-->
+<script src="template-web.js"></script>
+<!--写一个模板-->
+<script type="text/html" id="tplComments">
+	<% for(var i = 0; i < list.length; i++) { %>
+	<% if(list[i].status == 'held') { %>
+	<tr class="danger">
+		<% } else { %>
+	<tr>
+		<% } %>
+		<td class="text-center"><input type="checkbox" value="<%= list[i].id %>" onclick="showBatch()"></td>
+		<td><%= list[i].author %></td>
+		<td><%= list[i].content %></td>
+		<td>《<%= list[i].title %>》</td>
+		<td><%= list[i].created %></td>
+		<% if(list[i].status == "approved") { %>
+		<td>已批准</td>
+		<% } else if (list[i].status == "held") { %>
+		<td>待审核</td>
+		<% } else if (list[i].status == "rejected") { %>
+		<td>未批准</td>
+		<% } else if (list[i].status == "trashed") { %>
+		<td>已废弃</td>
+		<% } %>
+		<td class="text-center">
+			<!--状态 == held 代表未批准-->
+			{{ if list[i].status == "held"}}
+			<a href="javascript:updateTr(<%= list[i].id %>,'approved')" class="btn btn-info btn-xs">批准</a>
+			<!--代表已经批准-->
+			{{ else if list[i].status == "approved"}}
+			<a href="javascript:updateTr(<%= list[i].id %>,'rejected')" class="btn btn-warning btn-xs">驳回</a>
+			{{/if }}
+			<a href="javascript:deleteTr(<%= list[i].id %>);" class="btn btn-danger btn-xs">删除</a>
+		</td>
+	</tr>
+	<% } %>
+</script>
+<!--写一个模板-->
+<script type="text/html" id="tplPage">
+	<!--判断当前页 如果是第一页 就禁止点击-->
+	{{if currentPage == 1}}
+	<li><a href="javascript:">上一页</a></li>
+	{{else}}
+	<li><a href="javascript:loadDate(<%= currentPage-1 %>)">上一页</a></li>
+	{{/if}}
+	
+	<% for(var i = 1;i <= totalPage; i++) {%>
+	<!--判断如果i = 当前页 就让i 高亮-->
+	{{ if i == currentPage }}
+	<li class="active"><a href="javascript:loadDate(<%= i %>)"><%= i %></a></li>
+	{{ else }}
+	<li><a href="javascript:loadDate(<%= i %>)"><%= i %></a></li>
+	{{ /if }}
+	<% } %>
+	
+	<!--判断当前页 如果是最后一页 就禁止点击-->
+	{{if currentPage == totalPage}}
+	<li><a href="javascript:">下一页</a></li>
+	{{else}}
+	<li><a href="javascript:loadDate(<%= currentPage+1 %>)">下一页</a></li>
+	{{/if}}
+</script>
+<script>
+	//准备一个全局变量 记录当前页
+	var currentIndex = 0;
+    function loadDate(currentPage) {
+        currentIndex = currentPage;
+        $.ajax({
+            url: "api/getComments.php",
+            data: {
+                pageIndex: currentPage,
+                pageCount: 10
+            },
+            type: "get",
+            dataType: "json",
+            success: function (res) {
+                //console.log(res);
+                var html = template('tplComments', {list: res.data});
+                $('tbody').html(html);
+                var html1 = template('tplPage', {totalPage: res.totalPage, currentPage: currentPage});
+                $('.pagination').html(html1);
+
+            }
+        })
+    }
+    loadDate(1);
+    //点击任意一个复选框 让最上面的btn-batch显示
+    //找到复选框
+    function showBatch() {
+        if ($('tbody :checked').length >0)
+            $('.btn-batch').fadeIn();
+        else {
+            $('.btn-batch').fadeOut();
+        }
+        //判断下面的复选框是否是都被选中的 如果是 全选框也选中 如果不是 全选框不选中
+	    //如果下面复选框被选中的length 等于 这一页的复选框的length 代表全选了
+        if ($('tbody :checked').length == $('tbody :checkbox').length) {
+            //复选框全部选中的话  全选框的checked值设为true
+            $('thead :checkbox').prop('checked',true);
+        }else {
+            $('thead :checkbox').prop('checked',false);
+        }
+    }
+	//点击全选的时候 让下面的复选框都被选中
+    $('thead :checkbox').on('click',function () {
+	    //console.log($('thead :checkbox').prop('checked'));
+	    //设置下面的所有复选框的checked值 
+	    $('tbody :checkbox').prop('checked', $('thead :checkbox').prop('checked'));
+	    //判断 全选框被选中的话  下面的复选框都被选中
+	    if ( $('thead :checkbox').prop('checked')) {
+            $('.btn-batch').fadeIn();
+	    }else {
+            $('.btn-batch').fadeOut();
+	    }
+	    
+    })
+	
+    //点击删除单条数据  删除点击的这条数据
+	function deleteTr(id) {
+		$.ajax({
+			url:"api/deleteComments.php",
+			type:"post",
+			data:{ids:id},
+			success:function (res) {
+			    console.log(res);
+				loadDate(currentIndex);
+            }
+		})
+    }
+    //批量删除
+	//console.log($('.btn-batch >.btn-danger'));
+	$('.btn-batch >.btn-danger').on('click',function () {
+		//遍历所有被选中checkbox
+		var str = '';
+		$('tbody :checked').each(function (index,ele) {
+			//console.log(ele.value);
+			str += ele.value +',';
+        })
+        //console.log(str);
+		//把最后一个，去掉
+		str = str.substr(0,str.length-1);
+		console.log(str);
+		//发请求
+        $.ajax({
+            url:"api/deleteComments.php",
+            type:"post",
+            data:{ids:str},
+            success:function (res) {
+                //console.log(res);
+                loadDate(currentIndex);
+                $('thead :checkbox').prop('checked',false);
+            }
+        })
+    })
+	//修改某一行的状态
+	function updateTr(id,status) {
+		$.ajax({
+			url:"api/updateComments.php",
+			type:"post",
+			data:{ids:id,status:status},
+			success:function () {
+			    //刷新当前页
+				loadDate(currentIndex);
+            }
+		})
+    }
+    //批量修改
+	function updateBatch() {
+        var str1 = '';
+        $('tbody :checked').each(function (index,ele) {
+            str1 += ele.value + ',';
+        });
+        str1 = str1.substr(0,str1.length-1);
+        //console.log(str1);
+		var sts = '';
+		if(this.innerHTML == "批量删除") sts = "approved";
+		else sts = "rejected";
+		
+		//发请求
+		$.ajax({
+			type:"post",
+			url:"api/updateComments.php",
+			data:{ids:str1,status:sts},
+			success:function () {
+                //刷新当前页
+                loadDate(currentIndex);
+                $('thead :checkbox').prop('checked',false);
+            }
+		})
+    }
+	//console.log($('.btn-batch > .btn-info'));
+	$('.btn-batch > .btn-info').click(updateBatch);
+    $('.btn-batch > .btn-warning').click(updateBatch);
+	
+</script>
